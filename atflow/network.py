@@ -9,6 +9,7 @@ from atflow import constraints
 def conv2d_output_shape(input_shape, filter_shape, stride, padding):
     """
     Computes the shape of the output tensor from conv2d operation with the given configuration
+
     :param input_shape: shape of the input tensor, must be a list, numpy array or TensorShape
     :param filter_shape: shape of the convolution filter.
     :param stride: stride for the convolution

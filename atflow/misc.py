@@ -1,6 +1,7 @@
 import hashlib
 import logging
 from collections import Iterable
+import tensorflow as tf
 from tensorflow.python.util import nest
 
 import numpy as np

@@ -76,3 +76,4 @@ def offcenter_constrain(var, scope=None):
         update = tf.assign(var, constrained_value)
         tf.add_to_collection('constraints', update)
         return update, selection
+
