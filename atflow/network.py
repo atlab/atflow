@@ -34,17 +34,46 @@ def conv2d_output_shape(input_shape, filter_shape, stride, padding):
 
 
 def conv2d_config(input_shape, output_shape, filter_shape):
+    """
+    Based on the desired input, output and filter shape, figure out the correct 2D convolution configuration to use
+    including the type (normal or full convolution), stride size, padding type/size
+    :param input_shape:
+    :param output_shape:
+    :param filter_shape:
+    :return:
+    """
     input_shape = tf.TensorShape(input_shape).as_list()
-    batch_size = input_shape[0:1]
+    if len(input_shape) == 4:
+        batch_size = input_shape[0]
+    else:
+        batch_size = None
+
     input_shape = np.array(input_shape[-3:])
     output_shape = np.array(tf.TensorShape(output_shape).as_list()[-3:])
-    filter_shape = np.array(tf.TensorShape(filter_shape).as_list() + [input_shape[-1], output_shape[-1]])
-    stride = np.ceil((input_shape[-3:-1] - filter_shape[:-2] + 1) / output_shape[:-1]).astype(np.int)
-    padding = output_shape[:-1] * stride - input_shape[-3:-1] + filter_shape[:-2] - 1
+
+    # Determine what kind of convolution to use
+    if np.all(input_shape[-3:-1] >= output_shape[-3:-1]):
+        conv_type = "NORMAL"
+    elif np.all(input_shape[-3:-1] <= output_shape[-3:-1]):
+        conv_type = 'FULL'
+        # swap input and output shape
+        input_shape, output_shape = output_shape, input_shape
+    else:
+        raise ValueError('Input shape dimensions must be both bigger than or both smaller than output shape dimensions')
+
+    filter_shape = np.array(tf.TensorShape(filter_shape).as_list()[:2] + [input_shape[-1], output_shape[-1]])
+    stride = np.ceil((input_shape[:2] - filter_shape[:2] + 1) / output_shape[:2]).astype(np.int)
+    padding = output_shape[:2] * stride - input_shape[:2] + filter_shape[:2] - 1
+
+    # Determine what type of padding can be used
+    if np.all(np.ceil(input_shape[:2] / stride) == output_shape[:2]):
+        padding_type = 'SAME'
+    else:
+        padding_type = 'VALID'
 
     # get padded input shape
-
-    input_shape[:-1] = input_shape[:-1] + padding.astype(np.int)
+    input_shape[:2] = input_shape[:2] + padding.astype(np.int)
+    padded_shape = [batch_size] + input_shape.tolist()
 
     left_padding = np.ceil(padding / 2).astype(np.int)
     right_padding = np.floor(padding / 2).astype(np.int)
@@ -52,7 +81,49 @@ def conv2d_config(input_shape, output_shape, filter_shape):
     padding = [[0, 0], [left_padding[0], right_padding[0]], [left_padding[1], right_padding[1]], [0, 0]]
     stride = [1, stride[0], stride[1], 1]
 
-    return filter_shape, stride, padding, batch_size + input_shape.tolist()
+    return filter_shape.tolist(), stride, padding, padded_shape, conv_type, padding_type
+
+
+def get_convolution_op(input_shape, output_shape, kernel_shape):
+    """
+    Given the desired shapes of the input, output and filter tensors, returns the shape of the appropriate
+    convolution filter and a correctly configured op function. The returned op function should be called with the
+    input tensor and weight tensor, and returns a result of 2D convolution that matches the desired output_shape
+    :param input_shape: desired input shape into the convolution operation
+    :param output_shape: desired output shape from the convolution operation
+    :param kernel_shape: desired convolution kernel shape. Only the first two diemensions (height and width) will be used.
+    :return: (filter_shape, conv_op) The shape of the appropriate convolution filter/weight to be used (filter_shape) and
+    a function that can be invoked with inputs tensor and correctly sized filter tensor to define the convolution operation.
+    """
+    filter_shape, strides, padding, padded_shape, conv_type, padding_type = conv2d_config(input_shape, output_shape, kernel_shape)
+    if conv_type == 'NORMAL':
+        def conv_op(inputs, weight, name='generic_convolution'):
+            with tf.name_scope(name):
+                if padding_type=='VALID' and np.sum(padding) > 0:
+                    inputs = tf.pad(inputs, padding, name='padding')
+                return tf.nn.conv2d(inputs, weight, strides, padding_type, name='convolution')
+
+    else:
+        def conv_op(inputs, weight, name='generic_convolution'):
+            if padding_type=='SAME':
+                padded_output = [padded_shape[0]] + output_shape[-3:]
+            else:
+                padded_output = padded_shape
+            with tf.name_scope(name):
+                if padded_output[0] is None:
+                    batch_size = tf.shape(inputs)[0]
+                    padded_output = [batch_size] + padded_output[1:]
+
+                output = tf.nn.conv2d_transpose(inputs, weight, padded_output, strides, padding_type, name='transpose_convolution')
+                if padding_type=='VALID' and np.sum(padding) > 0:
+                    output = tf.slice(output, [0, padding[1][0], padding[2][0], 0],
+                                      [-1] + output_shape[-3:], name='cropping')
+                return output
+
+    return filter_shape, conv_op
+
+
+
 
 def normalize_weights(w, dims=(0,), bias=1e-5):
     """
