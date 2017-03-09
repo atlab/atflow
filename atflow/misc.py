@@ -23,6 +23,13 @@ def nest_map(data, f):
     flat_data = nest.flatten(data)
     return nest.pack_sequence_as(data, list(map(f, flat_data)))
 
+def nest_zip(*data):
+    for d in data[1:]:
+        nest.assert_same_structure(data[0], d)
+    flat_data = [nest.flatten(d) for d in data]
+    paired = [list(e) for e in zip(*flat_data)]
+    return nest.pack_sequence_as(data[0], paired)
+
 def nested_shape(data):
     flat_data = nest.flatten(data)
     flat_shapes = [x.get_shape() for x in flat_data]
