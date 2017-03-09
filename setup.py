@@ -26,7 +26,7 @@ setup(
     url='https://github.com/atlab/atflow',
     keywords='tensorflow',
     packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
-    install_requires=['numpy', 'tensorflow'],
+    install_requires=['numpy'],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Science/Research',
