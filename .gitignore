@@ -1,0 +1,10 @@
+*.py[ocx]
+*__pycache__*
+*.swp
+*.swo
+~*
+*~
+.DS_Store
+.idea/
+*egg-info*
+
