@@ -140,7 +140,7 @@ def normalize_weights(w, dims=(0,), bias=1e-5):
         return w / (tf.sqrt(tf.reduce_sum(tf.square(w), dims, keep_dims=True) + bias))
 
 
-def weight_variable(shape, name='weight', mean=0.0, stddev=1e-3, initializer=None, constrain=None, dtype=tf.float32):
+def weight_variable(shape, name='weight', mean=0.0, stddev=None, initializer=None, constrain=None, dtype=tf.float32):
     """
     Creates and returns a variable initialized with random_normal_initializer, suitable for use as a weight.
 
@@ -156,6 +156,8 @@ def weight_variable(shape, name='weight', mean=0.0, stddev=1e-3, initializer=Non
     Returns: Weight variable with specified name and shape with random normal initialization.
 
     """
+    if stddev is None:
+        raise ValueError('stddev not specified!')
     if initializer is None:
         initializer = tf.random_normal_initializer(mean=mean, stddev=stddev)
     weights = tf.get_variable(name, shape=shape, initializer=initializer, dtype=dtype)
