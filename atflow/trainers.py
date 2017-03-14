@@ -51,9 +51,9 @@ class Trainer:
                 grad_values = gradient.values
             else:
                 grad_values = gradient
-            tf.histogram_summary(variable.name, variable)
-            tf.histogram_summary(variable.name + "/gradients", grad_values)
-            tf.histogram_summary(variable.name + "/gradient_norm",
+            tf.summary.histogram(variable.name, variable)
+            tf.summary.histogram(variable.name + "/gradients", grad_values)
+            tf.summary.histogram(variable.name + "/gradient_norm",
                                  tf.global_norm([grad_values]))
 
     @property
@@ -69,9 +69,9 @@ class Trainer:
         if not isdir(self.checkpoint_dir):
             makedirs(self.checkpoint_dir)
 
-        self.train_summary = tf.train.SummaryWriter(join(self.log_dir, 'train'), graph=self.graph)
-        self.validation_summary = tf.train.SummaryWriter(join(self.log_dir, 'validation'))
-        self.test_summary = tf.train.SummaryWriter(join(self.log_dir, 'test'))
+        self.train_summary = tf.summary.FileWriter(join(self.log_dir, 'train'), graph=self.graph)
+        self.validation_summary = tf.summary.FileWriter(join(self.log_dir, 'validation'))
+        self.test_summary = tf.summary.FileWriter(join(self.log_dir, 'test'))
 
     @property
     def checkpoint_dir(self):
@@ -86,7 +86,7 @@ class Trainer:
             # add regularizers if present
             if self.regularize and tf.get_collection('regularization'):
                 self.total_loss += tf.add_n(tf.get_collection('regularization'))
-            tf.scalar_summary('total_loss', self.total_loss)
+            tf.summary.scalar('total_loss', self.total_loss)
             self.optimizer = self.optimizer_op(**self.optimizer_config)
             self.global_step = tf.Variable(0, trainable=False, name='global_step')
             self.gradients = self.optimizer.compute_gradients(self.total_loss)
@@ -96,13 +96,13 @@ class Trainer:
             # make sure you perform updates before next train step
             with tf.control_dependencies(update_ops):
                 self.train_step = self.optimizer.minimize(self.total_loss, global_step=self.global_step)
-            self.summary = tf.merge_all_summaries()
+            self.summary = tf.summary.merge_all()
 
             # configure to save and load all variables except for the global step value
-            variables_to_load = [v for v in tf.all_variables() if 'global_step' not in v.name]
+            variables_to_load = [v for v in tf.global_variables() if 'global_step' not in v.name]
             self.saver = tf.train.Saver(max_to_keep=10)
             self.saver_best = tf.train.Saver(variables_to_load, max_to_keep=1)
-            self.init = tf.initialize_all_variables()
+            self.init = tf.global_variables_initializer()
             self.apply_constraints = constraints.constrain_all_variables()
 
     def add_custom_saver(self, name_map):

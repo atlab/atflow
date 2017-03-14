@@ -17,7 +17,7 @@ def positive_constrain(var, scope=None):
     """Constrain the variable tensor `var` to be zero or positive in all entries"""
     if tf.get_variable_scope().reuse: return
     with tf.name_scope(scope or 'positive_constrain'):
-        constrained_value = tf.select(tf.greater_equal(var, 0.0), var, tf.zeros_like(var))
+        constrained_value = tf.where(tf.greater_equal(var, 0.0), var, tf.zeros_like(var))
         update = tf.assign(var, constrained_value)
         tf.add_to_collection('constraints', update)
         return update
@@ -27,7 +27,7 @@ def negative_constrain(var, scope=None):
     """Constrain the variable tensor `var` to be zero or negative in all entries"""
     if tf.get_variable_scope().reuse: return
     with tf.name_scope(scope or 'negative_constrain'):
-        constrained_value = tf.select(tf.less_equal(var, 0.0), var, tf.zeros_like(var))
+        constrained_value = tf.where(tf.less_equal(var, 0.0), var, tf.zeros_like(var))
         update = tf.assign(var, constrained_value)
         tf.add_to_collection('constraints', update)
         return update
@@ -38,7 +38,7 @@ def offdiagonal_constrain(var, scope=None):
     if tf.get_variable_scope().reuse: return
     with tf.name_scope(scope or 'offdiagonal_constrain'):
         diag = tf.diag_part(var)
-        constrained_value = tf.select(tf.greater_equal(var, 0.0), var, tf.zeros_like(var))
+        constrained_value = tf.where(tf.greater_equal(var, 0.0), var, tf.zeros_like(var))
         constrained_value = tf.batch_matrix_set_diag(constrained_value, diag)
         update = tf.assign(var, constrained_value)
         tf.add_to_collection('constraints', update)
@@ -56,7 +56,7 @@ def nonself_filter_constrain(var, scope=None):
     with tf.name_scope(scope or 'nonself_filter_constrain'):
         filter = tf.constant(filter, dtype=tf.bool)
         selection = tf.logical_or(tf.greater_equal(var, 0.0), filter)
-        constrained_value = tf.select(selection, var, tf.zeros_like(var))
+        constrained_value = tf.where(selection, var, tf.zeros_like(var))
         update = tf.assign(var, constrained_value)
         tf.add_to_collection('constraints', update)
         return update, selection
@@ -72,7 +72,7 @@ def offcenter_constrain(var, scope=None):
     with tf.name_scope(scope or 'offcenter_constrain'):
         filter = tf.constant(filter, dtype=tf.bool)
         selection = tf.logical_or(tf.greater_equal(var, 0.0), filter)
-        constrained_value = tf.select(selection, var, tf.zeros_like(var))
+        constrained_value = tf.where(selection, var, tf.zeros_like(var))
         update = tf.assign(var, constrained_value)
         tf.add_to_collection('constraints', update)
         return update, selection
