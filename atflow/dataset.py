@@ -165,7 +165,7 @@ class Dataset:
 
         def get_stats(inputs, axis=None):
             if axis is None:
-                axis = tuple(range(inputs.ndim - 1))
+                axis = tuple(range(max(inputs.ndim - 1, 1)))
             stats = {}
             mean = np.mean(inputs, axis=axis, keepdims=True)
             std = np.std(inputs, axis=axis, ddof=1, keepdims=True)
@@ -196,12 +196,17 @@ class Dataset:
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_stationary_std)
 
 
-    def normalize(self, axis=None):
+    def normalize(self, axis=None, control=None):
         # TODO: extend to support more complex axis specification
         self.update_stats(axis=axis)
+        if control is None:
+            control = [True] * len(self._train_inputs)
+        else:
+            control = nest.flatten(control)
 
         def normalize_inputs(data):
-            normalized_data = [(d-mu)/sigma for d, mu, sigma in zip(data, self._inputs_mean, self._inputs_std)]
+            normalized_data = [((d-mu)/sigma if c else d) for d, mu, sigma, c in zip(data, self._inputs_mean,
+                                                                    self._inputs_std, control)]
             return normalized_data
 
         self._train_inputs = normalize_inputs(self._train_inputs)
