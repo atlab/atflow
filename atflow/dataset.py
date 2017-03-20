@@ -20,7 +20,7 @@ class Dataset:
                  inputs, targets,
                  test_inputs=None, test_targets=None,
                  validation_inputs=None, validation_targets=None,
-                 seed=None, train_frac=0.8,
+                 seed=None, train_frac=0.8, inputs_label=None,
                  **kwargs):
         """
        Initialize Dataset using existing data. You must at least provide inputs and targets data where the first
@@ -45,6 +45,13 @@ class Dataset:
         # keep inputs and targets in its structured form
         flat_inputs = nest.flatten(inputs)
         flat_targets = nest.flatten(targets)
+
+        if inputs_label is None:
+            inputs_label = ['inputs{}'.format(i) for i in range(len(flat_inputs))]
+        else:
+            nest.assert_same_structure(inputs_label, inputs)
+            inputs_label = nest.flatten(inputs_label)
+        self._inputs_label = inputs_label
 
         n_inputs = len(flat_inputs[0])
 
@@ -109,6 +116,10 @@ class Dataset:
         self._minibatch_indicies = None
         self.info = kwargs
         self.next_epoch()
+
+    @property
+    def inputs_label(self):
+        return nest.pack_sequence_as(self.inputs_structure, self._inputs_label)
 
 
     @property
@@ -305,6 +316,10 @@ class Dataset:
 class MultiDataset:
     def __init__(self, *datasets):
         self._datasets = datasets
+
+    @property
+    def inputs_label(self):
+        return [d.inputs_label for d in self._datasets]
 
     @property
     def train_inputs(self):
