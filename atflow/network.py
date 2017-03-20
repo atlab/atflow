@@ -125,14 +125,14 @@ def get_convolution_op(input_shape, output_shape, kernel_shape):
 
 
 
-def normalize_weights(w, dims=(0,), bias=1e-5):
+def normalize_weights(w, dims=(0,), bias=1e-12):
     """
     L2 normalize weights of the given tensor along specified dimension(s).
 
     Args:
         w: Tensor to be normalized
         dims: dimension(s) along which to normalize the Tensor. Defaults to (0,)
-        bias: Bias value added to the computed norm to prevent dividing by 0. Defaults to 1e-5
+        bias: Bias value added to the computed norm to prevent dividing by 0. Defaults to 1e-12
 
     Returns: Tensor of same type and shape as `w` whose norm is set to approximately 1 along the specificed dimensions
     """
