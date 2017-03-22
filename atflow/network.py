@@ -6,13 +6,14 @@ from tensorflow.contrib import layers
 from atflow import constraints
 
 
-def conv2d_output_shape(input_shape, filter_shape, stride, padding):
+
+def conv2d_output_shape(input_shape, filter_shape, strides, padding):
     """
     Computes the shape of the output tensor from conv2d operation with the given configuration
 
     :param input_shape: shape of the input tensor, must be a list, numpy array or TensorShape
     :param filter_shape: shape of the convolution filter.
-    :param stride: stride for the convolution
+    :param strides: strides for the convolution
     :param padding: padding mode, either 'VALID' or 'SAME'
     :return: shape of the output tensor as a plain list of integers
     """
@@ -22,18 +23,18 @@ def conv2d_output_shape(input_shape, filter_shape, stride, padding):
     input_shape_list = tf.TensorShape(input_shape).as_list()
     batch = input_shape_list[:-3]
     input_shape = np.array(input_shape_list[-3:])
-    stride = np.array(stride)
+    strides = np.array(strides)
     if padding == 'VALID':
         shift = -filter_patch_shape + 1
     elif padding == 'SAME':
         shift = 0
     else:
         raise ValueError('padding must be either "VALID" or "SAME", but "%s" was given' % padding)
-    output_shape = np.ceil((input_shape[:2] + shift) / stride[1:3])
+    output_shape = np.ceil((input_shape[:2] + shift) / strides[1:3])
     return batch + output_shape.astype(np.int).tolist() + [filter_out]
 
 
-def conv2d_config(input_shape, output_shape, filter_shape):
+def conv2d_config(input_shape, output_shape, filter_shape, strides=None):
     """
     Based on the desired input, output and filter shape, figure out the correct 2D convolution configuration to use
     including the type (normal or full convolution), stride size, padding type/size
@@ -62,11 +63,15 @@ def conv2d_config(input_shape, output_shape, filter_shape):
         raise ValueError('Input shape dimensions must be both bigger than or both smaller than output shape dimensions')
 
     filter_shape = np.array(tf.TensorShape(filter_shape).as_list()[:2] + [input_shape[-1], output_shape[-1]])
-    stride = np.ceil((input_shape[:2] - filter_shape[:2] + 1) / output_shape[:2]).astype(np.int)
-    padding = output_shape[:2] * stride - input_shape[:2] + filter_shape[:2] - 1
+    if strides is None:
+        strides = np.ceil((input_shape[:2] - filter_shape[:2] + 1) / output_shape[:2]).astype(np.int)
+    else:
+
+        strides = np.array(strides[1:4]) if len(strides) == 4 else np.array(strides)
+    padding = output_shape[:2] * strides - input_shape[:2] + filter_shape[:2] - 1
 
     # Determine what type of padding can be used
-    if np.all(np.ceil(input_shape[:2] / stride) == output_shape[:2]):
+    if np.all(np.ceil(input_shape[:2] / strides) == output_shape[:2]):
         padding_type = 'SAME'
     else:
         padding_type = 'VALID'
@@ -79,9 +84,9 @@ def conv2d_config(input_shape, output_shape, filter_shape):
     right_padding = np.floor(padding / 2).astype(np.int)
 
     padding = [[0, 0], [left_padding[0], right_padding[0]], [left_padding[1], right_padding[1]], [0, 0]]
-    stride = [1, stride[0], stride[1], 1]
+    strides = [1, strides[0], strides[1], 1]
 
-    return filter_shape.tolist(), stride, padding, padded_shape, conv_type, padding_type
+    return filter_shape.tolist(), strides, padding, padded_shape, conv_type, padding_type
 
 
 def get_convolution_op(input_shape, output_shape, kernel_shape):
@@ -229,3 +234,41 @@ def batch_norm(inputs, *args, tag=None, add_summary=True, step=0, **kwargs):
         tf.summary.histogram(tag, inputs)
         tf.summary.histogram(tag + '_bn', output)
     return output
+
+
+def conv2d(input, filter, strides, padding, padding_type=0, name=None, **kwargs):
+    """
+    Currently the following types of paddings are supported:
+    * (numeric value) - padding will be filled with the given constant. This can be a TensorFlow
+    tensor.
+    * 'MEAN' - each channel will be padded by the mean activity of that channel
+    * 'REFLECT' - padded with values reflected at the edge
+    * 'SYMMETRIC' - similar to 'REFLECT' but the edge values are repeated
+    For details on 'REFLECT' and 'SYMMETRIC' refer to the documentation for `tf.pad`
+    """
+    if padding == 'VALID':
+        return tf.nn.conv2d(input, filter, strides, padding, name=name, **kwargs)
+
+    if padding_type == 0:
+        return tf.nn.conv2d(input, filter, strides, padding, name=name, **kwargs)
+
+    input_shape = tf.convert_to_tensor(input).get_shape().as_list()
+    filter_shape = tf.convert_to_tensor(filter).get_shape().as_list()
+
+    paddings = conv2d_config(input_shape, input_shape, filter_shape, strides=strides)[2]
+
+    if padding_type in ('REFLECT', 'SYMMETRIC'):
+        with tf.name_scope(name):
+            padded_input = tf.pad(input, paddings, mode=padding_type, name='padding')
+            return tf.nn.conv2d(padded_input, filter, strides, 'VALID', name='conv', **kwargs)
+
+    with tf.name_scope(name):
+        if padding_type == 'MEAN':
+            value = tf.reduce_mean(input, axis=[1, 2], keep_dims=True)
+        else:
+            value = padding_type
+
+        padded_input = tf.pad(input - value, paddings, name='padding') + value
+        return tf.nn.conv2d(padded_input, filter, strides, 'VALID', name='conv', **kwargs)
+
+
