@@ -66,8 +66,7 @@ def conv2d_config(input_shape, output_shape, filter_shape, strides=None):
     if strides is None:
         strides = np.ceil((input_shape[:2] - filter_shape[:2] + 1) / output_shape[:2]).astype(np.int)
     else:
-
-        strides = np.array(strides[1:4]) if len(strides) == 4 else np.array(strides)
+        strides = np.array(strides[1:3]) if len(strides) == 4 else np.array(strides)
     padding = output_shape[:2] * strides - input_shape[:2] + filter_shape[:2] - 1
 
     # Determine what type of padding can be used
