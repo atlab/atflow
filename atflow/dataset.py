@@ -20,7 +20,8 @@ class Dataset:
                  inputs, targets,
                  test_inputs=None, test_targets=None,
                  validation_inputs=None, validation_targets=None,
-                 seed=None, train_frac=0.8, inputs_label=None,
+                 seed=None, train_frac=0.8,
+                 inputs_label=None, targets_label=None
                  **kwargs):
         """
        Initialize Dataset using existing data. You must at least provide inputs and targets data where the first
@@ -51,7 +52,14 @@ class Dataset:
         else:
             nest.assert_same_structure(inputs_label, inputs)
             inputs_label = nest.flatten(inputs_label)
+
+        if targets_label is None:
+            targets_label = ['targets{}'.format(i) for i in range(len(flat_targets))]
+        else:
+            nest.assert_same_structure(targets_label, targets)
+            targets_label = nest.flatten(targets_label)
         self._inputs_label = inputs_label
+        self._targets_label = targets_label
 
         n_inputs = len(flat_inputs[0])
 
@@ -120,6 +128,10 @@ class Dataset:
     @property
     def inputs_label(self):
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_label)
+
+    @property
+    def targets_label(self):
+        return nest.pack_sequence_as(self.inputs_structure, self._targets_label)
 
 
     @property
