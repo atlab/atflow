@@ -131,7 +131,7 @@ class Dataset:
 
     @property
     def targets_label(self):
-        return nest.pack_sequence_as(self.inputs_structure, self._targets_label)
+        return nest.pack_sequence_as(self.targets_structure, self._targets_label)
 
 
     @property
