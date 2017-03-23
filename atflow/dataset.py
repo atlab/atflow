@@ -21,7 +21,7 @@ class Dataset:
                  test_inputs=None, test_targets=None,
                  validation_inputs=None, validation_targets=None,
                  seed=None, train_frac=0.8,
-                 inputs_label=None, targets_label=None
+                 inputs_label=None, targets_label=None,
                  **kwargs):
         """
        Initialize Dataset using existing data. You must at least provide inputs and targets data where the first
