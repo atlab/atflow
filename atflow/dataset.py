@@ -334,6 +334,10 @@ class MultiDataset:
         return [d.inputs_label for d in self._datasets]
 
     @property
+    def targets_label(self):
+        return [d.targets_label for d in self._datasets]
+
+    @property
     def train_inputs(self):
         return [d.train_inputs for d in self._datasets]
 
