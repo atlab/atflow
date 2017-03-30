@@ -44,13 +44,15 @@ def conv2d_config(input_shape, output_shape, filter_shape, strides=None):
     :return:
     """
     input_shape = tf.TensorShape(input_shape).as_list()
+    output_shape = tf.TensorShape(output_shape).as_list()
+    filter_shape = tf.TensorShape(filter_shape).as_list()
     if len(input_shape) == 4:
         batch_size = input_shape[0]
     else:
         batch_size = None
 
     input_shape = np.array(input_shape[-3:])
-    output_shape = np.array(tf.TensorShape(output_shape).as_list()[-3:])
+    output_shape = np.array(output_shape[-3:])
 
     # Determine what kind of convolution to use
     if np.all(input_shape[-3:-1] >= output_shape[-3:-1]):
@@ -62,7 +64,7 @@ def conv2d_config(input_shape, output_shape, filter_shape, strides=None):
     else:
         raise ValueError('Input shape dimensions must be both bigger than or both smaller than output shape dimensions')
 
-    filter_shape = np.array(tf.TensorShape(filter_shape).as_list()[:2] + [input_shape[-1], output_shape[-1]])
+    filter_shape = np.array(filter_shape[:2] + [input_shape[-1], output_shape[-1]])
     if strides is None:
         strides = np.ceil((input_shape[:2] - filter_shape[:2] + 1) / output_shape[:2]).astype(np.int)
     else:
@@ -125,11 +127,12 @@ def get_convolution_op(input_shape, output_shape, kernel_shape, padding_type=0):
                 if padded_output[0] is None:
                     batch_size = tf.shape(inputs)[0]
                     padded_output = [batch_size] + padded_output[1:]
-
                 output = tf.nn.conv2d_transpose(inputs, weight, padded_output, strides, padding, name='transpose_convolution')
                 if padding == 'VALID' and np.sum(pad_vals) > 0:
                     output = tf.slice(output, [0, pad_vals[1][0], pad_vals[2][0], 0],
                                       [-1] + output_shape[-3:], name='cropping')
+                if not output.shape.is_fully_defined():
+                    output.set_shape([None] + output_shape[-3:])
                 return output
 
     return filter_shape, conv_op
