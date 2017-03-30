@@ -67,6 +67,7 @@ def conv2d_config(input_shape, output_shape, filter_shape, strides=None):
         strides = np.ceil((input_shape[:2] - filter_shape[:2] + 1) / output_shape[:2]).astype(np.int)
     else:
         strides = np.array(strides[1:3]) if len(strides) == 4 else np.array(strides)
+    strides[strides <= 0] = 1
     padding = output_shape[:2] * strides - input_shape[:2] + filter_shape[:2] - 1
 
     # Determine what type of padding can be used
@@ -88,7 +89,7 @@ def conv2d_config(input_shape, output_shape, filter_shape, strides=None):
     return filter_shape.tolist(), strides, padding, padded_shape, conv_type, padding_type
 
 
-def get_convolution_op(input_shape, output_shape, kernel_shape):
+def get_convolution_op(input_shape, output_shape, kernel_shape, padding_type=0):
     """
     Given the desired shapes of the input, output and filter tensors, returns the shape of the appropriate
     convolution filter and a correctly configured op function. The returned op function should be called with the
@@ -99,17 +100,24 @@ def get_convolution_op(input_shape, output_shape, kernel_shape):
     :return: (filter_shape, conv_op) The shape of the appropriate convolution filter/weight to be used (filter_shape) and
     a function that can be invoked with inputs tensor and correctly sized filter tensor to define the convolution operation.
     """
-    filter_shape, strides, padding, padded_shape, conv_type, padding_type = conv2d_config(input_shape, output_shape, kernel_shape)
+    input_shape = tf.TensorShape(input_shape).as_list()
+    output_shape = tf.TensorShape(output_shape).as_list()
+    kernel_shape = tf.TensorShape(kernel_shape).as_list()
+    filter_shape, strides, pad_vals, padded_shape, conv_type, padding = conv2d_config(input_shape, output_shape, kernel_shape)
     if conv_type == 'NORMAL':
         def conv_op(inputs, weight, name='generic_convolution'):
             with tf.name_scope(name):
-                if padding_type=='VALID' and np.sum(padding) > 0:
-                    inputs = tf.pad(inputs, padding, name='padding')
-                return tf.nn.conv2d(inputs, weight, strides, padding_type, name='convolution')
+                if padding == 'VALID' and np.sum(pad_vals) > 0:
+                    inputs = image_pad(inputs, pad_vals, mode=padding_type, name='padding')
+                return conv2d(inputs, weight, strides,
+                              padding=padding,
+                              padding_type=padding_type,
+                              name='convolution')
+
 
     else:
         def conv_op(inputs, weight, name='generic_convolution'):
-            if padding_type=='SAME':
+            if padding == 'SAME':
                 padded_output = [padded_shape[0]] + output_shape[-3:]
             else:
                 padded_output = padded_shape
@@ -118,9 +126,9 @@ def get_convolution_op(input_shape, output_shape, kernel_shape):
                     batch_size = tf.shape(inputs)[0]
                     padded_output = [batch_size] + padded_output[1:]
 
-                output = tf.nn.conv2d_transpose(inputs, weight, padded_output, strides, padding_type, name='transpose_convolution')
-                if padding_type=='VALID' and np.sum(padding) > 0:
-                    output = tf.slice(output, [0, padding[1][0], padding[2][0], 0],
+                output = tf.nn.conv2d_transpose(inputs, weight, padded_output, strides, padding, name='transpose_convolution')
+                if padding == 'VALID' and np.sum(pad_vals) > 0:
+                    output = tf.slice(output, [0, pad_vals[1][0], pad_vals[2][0], 0],
                                       [-1] + output_shape[-3:], name='cropping')
                 return output
 
@@ -245,29 +253,36 @@ def conv2d(input, filter, strides, padding, padding_type=0, name=None, **kwargs)
     * 'SYMMETRIC' - similar to 'REFLECT' but the edge values are repeated
     For details on 'REFLECT' and 'SYMMETRIC' refer to the documentation for `tf.pad`
     """
-    if padding == 'VALID':
-        return tf.nn.conv2d(input, filter, strides, padding, name=name, **kwargs)
-
-    if padding_type == 0:
+    if padding == 'VALID' or padding_type==0:
         return tf.nn.conv2d(input, filter, strides, padding, name=name, **kwargs)
 
     input_shape = tf.convert_to_tensor(input).get_shape().as_list()
     filter_shape = tf.convert_to_tensor(filter).get_shape().as_list()
 
-    paddings = conv2d_config(input_shape, input_shape, filter_shape, strides=strides)[2]
 
-    if padding_type in ('REFLECT', 'SYMMETRIC'):
+    # consider combining the two lines for efficiency in computation
+    output_shape = conv2d_output_shape(input_shape, filter_shape, strides, 'SAME')
+    pad_vals = conv2d_config(input_shape, output_shape, filter_shape, strides=strides)[2]
+
+    if np.sum(pad_vals) > 0:
         with tf.name_scope(name):
-            padded_input = tf.pad(input, paddings, mode=padding_type, name='padding')
+            padded_input = image_pad(input, pad_vals, mode=padding_type, name='padding')
             return tf.nn.conv2d(padded_input, filter, strides, 'VALID', name='conv', **kwargs)
+    else:
+        return tf.nn.conv2d(input, filter, strides, padding, name=name, **kwargs)
+
+
+def image_pad(input, paddings, mode=0, name=None):
+    if mode==0:
+        mode = 'CONSTANT'
+
+    if mode in ('CONSTANT', 'REFLECT', 'SYMMETRIC'):
+        return tf.pad(input, paddings, mode=mode, name=name)
 
     with tf.name_scope(name):
-        if padding_type == 'MEAN':
+        if mode == 'MEAN':
             value = tf.reduce_mean(input, axis=[1, 2], keep_dims=True)
         else:
-            value = padding_type
+            value = mode
 
-        padded_input = tf.pad(input - value, paddings, name='padding') + value
-        return tf.nn.conv2d(padded_input, filter, strides, 'VALID', name='conv', **kwargs)
-
-
+        return tf.pad(input - value, paddings, name='padding') + value
