@@ -196,7 +196,7 @@ class Dataset:
             stationary_std = np.std(inputs, ddof=1)
             return mean, std, stationary_mean, stationary_std
 
-        mean, std, stationary_mean, stationay_std = zip(*[get_stats(x) for x in self._train_inputs])
+        mean, std, stationary_mean, stationay_std = zip(*[get_stats(x, axis=axis) for x in self._train_inputs])
         self._inputs_mean = mean
         self._inputs_std = std
         self._inputs_stationary_mean = stationary_mean
