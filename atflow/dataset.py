@@ -227,9 +227,12 @@ class Dataset:
         else:
             control = nest.flatten(control)
 
+        # establish closure
+        inputs_mean = self._inputs_mean
+        inputs_std = self._inputs_std
         def normalize_inputs(data):
-            normalized_data = [((d-mu)/sigma if c else d) for d, mu, sigma, c in zip(data, self._inputs_mean,
-                                                                    self._inputs_std, control)]
+            normalized_data = [((d-mu)/sigma if c else d) for d, mu, sigma, c in zip(data, inputs_mean,
+                                                                    inputs_std, control)]
             return normalized_data
 
         self.normalizer = normalize_inputs
