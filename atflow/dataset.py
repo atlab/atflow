@@ -232,6 +232,8 @@ class Dataset:
                                                                     self._inputs_std, control)]
             return normalized_data
 
+        self.normalizer = normalize_inputs
+
         self._train_inputs = normalize_inputs(self._train_inputs)
 
         if self._test_inputs is not None:
@@ -390,8 +392,14 @@ class MultiDataset:
         return [d.inputs_stationary_std for d in self._datasets]
 
     def normalize(self, axis=None):
+        normalizers = []
         for d in self._datasets:
             d.normalize(axis=axis)
+            normalizers.append(d.normalizer)
+        def normalize_all(data):
+            return [n(d) for d, n in zip(data, normalizers)]
+
+        self.normalizer = normalize_all
 
     @property
     def n_train_samples(self):
