@@ -125,7 +125,8 @@ class Dataset:
         self._minibatch_indicies = None
         self.info = kwargs
         self.next_epoch()
-        self.normalizer = lambda data: [d for d in data] if isinstance(data, list) else data
+
+        self.normalizer = lambda data: data
 
     @property
     def inputs_label(self):
@@ -231,12 +232,10 @@ class Dataset:
         inputs_std = self._inputs_std
 
         def normalize_inputs(data):
-            if isinstance(data, list):
-                normalized_data = [((d - mu) / sigma if c else d) for d, mu, sigma, c in zip(data, inputs_mean,
-                                                                                             inputs_std, control)]
-            else:
-                normalized_data = (data - inputs_mean) / inputs_std
-            return normalized_data
+            flat_data = nest.flatten(data)
+            normalized_data = [((d - mu) / sigma if c else d) for d, mu, sigma, c in
+                               zip(data, inputs_mean, inputs_std, control)]
+            return nest.pack_sequence_as(data, normalized_data)
 
         self.normalizer = normalize_inputs
 
