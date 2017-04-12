@@ -12,10 +12,12 @@ def create_placeholders_like(input_shape, dtype=tf.float32, name='inputs_{index}
     inputs_ = nest.pack_sequence_as(input_shape, flat_inputs_)
     return inputs_
 
+
 class Dataset:
     """
     Represents a collection of dataset
     """
+
     def __init__(self,
                  inputs, targets,
                  test_inputs=None, test_targets=None,
@@ -65,7 +67,7 @@ class Dataset:
 
         def has_same_batch(data):
             d = len(data[0])
-            return all(map(lambda x: len(x)==d, data[1:]))
+            return all(map(lambda x: len(x) == d, data[1:]))
 
         if not has_same_batch(flat_inputs + flat_targets):
             raise ValueError('All inputs and targets must share same batch size')
@@ -75,7 +77,6 @@ class Dataset:
 
         self.inputs_structure = nest.pack_sequence_as(inputs, range(len(flat_inputs)))
         self.targets_structure = nest.pack_sequence_as(targets, range(len(flat_targets)))
-
 
         # verify shape consistencies
         if test_inputs is not None:
@@ -124,6 +125,7 @@ class Dataset:
         self._minibatch_indicies = None
         self.info = kwargs
         self.next_epoch()
+        self.normalizer = lambda data: [d for d in data] if isinstance(data, list) else data
 
     @property
     def inputs_label(self):
@@ -132,7 +134,6 @@ class Dataset:
     @property
     def targets_label(self):
         return nest.pack_sequence_as(self.targets_structure, self._targets_label)
-
 
     @property
     def train_inputs(self):
@@ -183,7 +184,6 @@ class Dataset:
                        validation_inputs=self.validation_inputs, validation_targets=self.validation_targets,
                        test_inputs=self.test_inputs, test_targets=self.test_targets)
 
-
     def update_stats(self, axis=None):
 
         def get_stats(inputs, axis=None):
@@ -218,7 +218,6 @@ class Dataset:
     def inputs_stationary_std(self):
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_stationary_std)
 
-
     def normalize(self, axis=None, control=None):
         # TODO: extend to support more complex axis specification
         self.update_stats(axis=axis)
@@ -230,9 +229,13 @@ class Dataset:
         # establish closure
         inputs_mean = self._inputs_mean
         inputs_std = self._inputs_std
+
         def normalize_inputs(data):
-            normalized_data = [((d-mu)/sigma if c else d) for d, mu, sigma, c in zip(data, inputs_mean,
-                                                                    inputs_std, control)]
+            if isinstance(data, list):
+                normalized_data = [((d - mu) / sigma if c else d) for d, mu, sigma, c in zip(data, inputs_mean,
+                                                                                             inputs_std, control)]
+            else:
+                normalized_data = (data - inputs_mean) / inputs_std
             return normalized_data
 
         self.normalizer = normalize_inputs
@@ -246,7 +249,6 @@ class Dataset:
             self._validation_inputs = normalize_inputs(self._validation_inputs)
 
         self.update_stats(axis=axis)
-
 
     @property
     def n_train_samples(self):
@@ -302,7 +304,8 @@ class Dataset:
         """
         # TODO: Consider cleaner handling of terminal indicies
         if batch_size > self.n_train_samples:
-            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(samples=self.n_train_samples))
+            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(
+                samples=self.n_train_samples))
         inputs, targets = self.train_set
         if self.minibatch_idx + batch_size > self.n_train_samples:
             self.next_epoch()
@@ -329,6 +332,7 @@ class Dataset:
         if seed:
             np.random.seed(seed)
         self.train_perm = np.random.permutation(self.n_train_samples)
+
 
 class MultiDataset:
     def __init__(self, *datasets):
@@ -399,6 +403,7 @@ class MultiDataset:
         for d in self._datasets:
             d.normalize(axis=axis)
             normalizers.append(d.normalizer)
+
         def normalize_all(data):
             return [n(d) for d, n in zip(data, normalizers)]
 
@@ -440,10 +445,10 @@ class MultiDataset:
         """
         return self.validation_inputs, self.validation_targets
 
-
     def minibatch(self, batch_size):
         if batch_size > self.n_train_samples:
-            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(samples=self.n_train_samples))
+            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(
+                samples=self.n_train_samples))
         minibatches = [dataset.minibatch(batch_size) for dataset in self._datasets]
         batch_inputs, batch_targets = zip(*minibatches)
         return list(batch_inputs), list(batch_targets)
@@ -451,6 +456,3 @@ class MultiDataset:
     def next_epoch(self, seed=None):
         for d in self._datasets:
             d.next_epoch(seed=seed)
-
-
-
