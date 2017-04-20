@@ -234,7 +234,7 @@ class Dataset:
         def normalize_inputs(data):
             flat_data = nest.flatten(data)
             normalized_data = [((d - mu) / sigma if c else d) for d, mu, sigma, c in
-                               zip(data, inputs_mean, inputs_std, control)]
+                               zip(flat_data, inputs_mean, inputs_std, control)]
             return nest.pack_sequence_as(data, normalized_data)
 
         self.normalizer = normalize_inputs
