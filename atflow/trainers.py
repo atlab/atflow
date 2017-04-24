@@ -12,7 +12,7 @@ from atflow import constraints
 class Trainer:
     def __init__(self, loss, inputs, targets, is_training=None,
                  session=None, session_config=None,
-                 log_dir=None,
+                 save_dir=None,
                  add_summary=False,
                  regularize=True, constrain=True,
                  optimizer_op=tf.train.AdamOptimizer, optimizer_config=None):
@@ -24,10 +24,10 @@ class Trainer:
         self.session = session
         self.session_config = session_config
 
-        self._log_dir = None
+        self._save_dir = None
 
 
-        self.log_dir = log_dir
+        self.save_dir = save_dir
 
         self.add_summary = add_summary
 
@@ -51,31 +51,31 @@ class Trainer:
                 grad_values = gradient.values
             else:
                 grad_values = gradient
-            tf.histogram_summary(variable.name, variable)
-            tf.histogram_summary(variable.name + "/gradients", grad_values)
-            tf.histogram_summary(variable.name + "/gradient_norm",
+            tf.summary.histogram(variable.name, variable)
+            tf.summary.histogram(variable.name + "/gradients", grad_values)
+            tf.summary.histogram(variable.name + "/gradient_norm",
                                  tf.global_norm([grad_values]))
 
     @property
-    def log_dir(self):
-        return self._log_dir
+    def save_dir(self):
+        return self._save_dir
 
-    @log_dir.setter
-    def log_dir(self, log_dir):
-        if log_dir is None:
-            log_dir = tempfile.mkdtemp()
-        self._log_dir = log_dir
+    @save_dir.setter
+    def save_dir(self, save_dir):
+        if save_dir is None:
+            save_dir = tempfile.mkdtemp()
+        self._save_dir = save_dir
         # create directory if not present
-        if not isdir(self.checkpoint_dir):
-            makedirs(self.checkpoint_dir)
+        if not isdir(self.summary_dir):
+            makedirs(self.summary_dir)
 
-        self.train_summary = tf.train.SummaryWriter(join(self.log_dir, 'train'), graph=self.graph)
-        self.validation_summary = tf.train.SummaryWriter(join(self.log_dir, 'validation'))
-        self.test_summary = tf.train.SummaryWriter(join(self.log_dir, 'test'))
+        self.train_summary = tf.summary.FileWriter(join(self.summary_dir, 'train'), graph=self.graph)
+        self.validation_summary = tf.summary.FileWriter(join(self.summary_dir, 'validation'))
+        self.test_summary = tf.summary.FileWriter(join(self.summary_dir, 'test'))
 
     @property
-    def checkpoint_dir(self):
-        return join(self.log_dir, 'checkpoints')
+    def summary_dir(self):
+        return join(self.save_dir, 'summary')
 
     def build(self):
         """
@@ -86,7 +86,7 @@ class Trainer:
             # add regularizers if present
             if self.regularize and tf.get_collection('regularization'):
                 self.total_loss += tf.add_n(tf.get_collection('regularization'))
-            tf.scalar_summary('total_loss', self.total_loss)
+            tf.summary.scalar('total_loss', self.total_loss)
             self.optimizer = self.optimizer_op(**self.optimizer_config)
             self.global_step = tf.Variable(0, trainable=False, name='global_step')
             self.gradients = self.optimizer.compute_gradients(self.total_loss)
@@ -96,13 +96,13 @@ class Trainer:
             # make sure you perform updates before next train step
             with tf.control_dependencies(update_ops):
                 self.train_step = self.optimizer.minimize(self.total_loss, global_step=self.global_step)
-            self.summary = tf.merge_all_summaries()
+            self.summary = tf.summary.merge_all()
 
             # configure to save and load all variables except for the global step value
-            variables_to_load = [v for v in tf.all_variables() if 'global_step' not in v.name]
+            variables_to_load = [v for v in tf.global_variables() if 'global_step' not in v.name]
             self.saver = tf.train.Saver(max_to_keep=10)
             self.saver_best = tf.train.Saver(variables_to_load, max_to_keep=1)
-            self.init = tf.initialize_all_variables()
+            self.init = tf.global_variables_initializer()
             self.apply_constraints = constraints.constrain_all_variables()
 
     def add_custom_saver(self, name_map):
@@ -118,26 +118,26 @@ class Trainer:
             self.custom_saver = tf.train.Saver(save_map)
             return self.custom_saver
 
-    def restore_custom(self, filename='best', checkpoint_dir=None):
+    def restore_custom(self, filename='best', save_dir=None):
         """
         Restore graph state from the custom checkpoint.
         :param filename:  Name of the custom checkpoint file.
-        :param checkpoint_dir: Directory of the custom checkpoint file. Defaults to the self.checkpoint_dir
+        :param save_dir: Directory of the custom checkpoint file. Defaults to the self.save_dir
         """
-        if checkpoint_dir is None:
-            checkpoint_dir = self.checkpoint_dir
-        checkpoint_path = join(checkpoint_dir, filename)
+        if save_dir is None:
+            save_dir = self.save_dir
+        checkpoint_path = join(save_dir, filename)
         self.custom_saver.restore(self.session, checkpoint_path)
 
-    def save_custom(self, filename, checkpoint_dir=None):
+    def save_custom(self, filename, save_dir=None):
         """
         Save current graph state into the custom checkpoint.
         :param filename: Name of the custom checkpoint file
-        :param checkpoint_dir: Directory of the custom checkpoint flie. Defaults to self.checkpoint_dir
+        :param save_dir: Directory of the custom checkpoint flie. Defaults to self.save_dir
         """
-        if checkpoint_dir is None:
-            checkpoint_dir = self.checkpoint_dir
-        checkpoint_path = join(checkpoint_dir, filename)
+        if save_dir is None:
+            save_dir = self.save_dir
+        checkpoint_path = join(save_dir, filename)
         self.custom_saver.save(self.session, checkpoint_path)
 
     def init_session(self, config=None):
@@ -162,7 +162,7 @@ class Trainer:
         """
         if step is None:
             step = self.session.run(self.global_step)
-        self.saver.save(self.session, join(self.checkpoint_dir, 'step'), global_step=step)
+        self.saver.save(self.session, join(self.save_dir, 'step'), global_step=step)
 
     def restore(self, step=None):
         """
@@ -171,22 +171,22 @@ class Trainer:
         :param step: global step value of the checkpoint to be loaded
         """
         if step is None:
-            filename = tf.train.latest_checkpoint(self.checkpoint_dir)
+            filename = tf.train.latest_checkpoint(self.save_dir)
         else:
-            filename = join(self.checkpoint_dir, 'step%d' % step)
+            filename = join(self.save_dir, 'step%d' % step)
         self.saver.restore(self.session, filename)
 
     def save_best(self):
         """
         Save the current state of the graph as the "best" state.
         """
-        self.saver_best.save(self.session, join(self.checkpoint_dir, 'best'))
+        self.saver_best.save(self.session, join(self.save_dir, 'best'))
 
     def restore_best(self):
         """
         Restores the last saved "best" state of the graph.
         """
-        self.saver_best.restore(self.session, join(self.checkpoint_dir, 'best'))
+        self.saver_best.restore(self.session, join(self.save_dir, 'best'))
 
     @property
     def last_checkpoints(self):

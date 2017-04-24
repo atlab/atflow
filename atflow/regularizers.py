@@ -7,7 +7,7 @@ def l1_regularizer(scale, scope='l1_regularizer', name=None, use_mean=True):
                 v = tf.reduce_mean(tf.abs(weights))
             else:
                 v = tf.reduce_sum(tf.abs(weights))
-            return tf.mul(scale, v, name=name)
+            return tf.multiply(scale, v, name=name)
     return l1
 
 
@@ -18,7 +18,7 @@ def l2_regularizer(scale, scope='l2_regularizer', use_mean=True):
                 v = tf.reduce_mean(tf.square(weights))/2
             else:
                 v = tf.reduce_sum(tf.square(weights))/2
-            return tf.mul(scale, v, name=name)
+            return tf.multiply(scale, v, name=name)
     return l2
 
 
@@ -28,7 +28,7 @@ def sparsity_L1_regularizer(weight, alpha=0.01, name=None, add_summary=False):
     l1_reg = l1_regularizer(alpha)(weight)
     tf.add_to_collection('regularization', l1_reg)
     if add_summary:
-        tf.scalar_summary('regularizer/' + name, l1_reg)
+        tf.summary.scalar('regularizer/' + name, l1_reg)
     return l1_reg
 
 
@@ -46,5 +46,5 @@ def laplacian_smoothness_regularizer(weight, alpha=0.01, name=None, add_summary=
     smoothness = l2_regularizer(alpha)(w_lap)
     tf.add_to_collection('regularization', smoothness)
     if add_summary:
-        tf.scalar_summary('regularizer/' + name, smoothness)
+        tf.summary.scalar('regularizer/' + name, smoothness)
     return smoothness

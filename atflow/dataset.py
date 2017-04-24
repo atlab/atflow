@@ -12,15 +12,18 @@ def create_placeholders_like(input_shape, dtype=tf.float32, name='inputs_{index}
     inputs_ = nest.pack_sequence_as(input_shape, flat_inputs_)
     return inputs_
 
+
 class Dataset:
     """
     Represents a collection of dataset
     """
+
     def __init__(self,
                  inputs, targets,
                  test_inputs=None, test_targets=None,
                  validation_inputs=None, validation_targets=None,
                  seed=None, train_frac=0.8,
+                 inputs_label=None, targets_label=None,
                  **kwargs):
         """
        Initialize Dataset using existing data. You must at least provide inputs and targets data where the first
@@ -46,11 +49,25 @@ class Dataset:
         flat_inputs = nest.flatten(inputs)
         flat_targets = nest.flatten(targets)
 
+        if inputs_label is None:
+            inputs_label = ['inputs{}'.format(i) for i in range(len(flat_inputs))]
+        else:
+            nest.assert_same_structure(inputs_label, inputs)
+            inputs_label = nest.flatten(inputs_label)
+
+        if targets_label is None:
+            targets_label = ['targets{}'.format(i) for i in range(len(flat_targets))]
+        else:
+            nest.assert_same_structure(targets_label, targets)
+            targets_label = nest.flatten(targets_label)
+        self._inputs_label = inputs_label
+        self._targets_label = targets_label
+
         n_inputs = len(flat_inputs[0])
 
         def has_same_batch(data):
             d = len(data[0])
-            return all(map(lambda x: len(x)==d, data[1:]))
+            return all(map(lambda x: len(x) == d, data[1:]))
 
         if not has_same_batch(flat_inputs + flat_targets):
             raise ValueError('All inputs and targets must share same batch size')
@@ -60,7 +77,6 @@ class Dataset:
 
         self.inputs_structure = nest.pack_sequence_as(inputs, range(len(flat_inputs)))
         self.targets_structure = nest.pack_sequence_as(targets, range(len(flat_targets)))
-
 
         # verify shape consistencies
         if test_inputs is not None:
@@ -110,6 +126,15 @@ class Dataset:
         self.info = kwargs
         self.next_epoch()
 
+        self.normalizer = lambda data: data
+
+    @property
+    def inputs_label(self):
+        return nest.pack_sequence_as(self.inputs_structure, self._inputs_label)
+
+    @property
+    def targets_label(self):
+        return nest.pack_sequence_as(self.targets_structure, self._targets_label)
 
     @property
     def train_inputs(self):
@@ -160,12 +185,11 @@ class Dataset:
                        validation_inputs=self.validation_inputs, validation_targets=self.validation_targets,
                        test_inputs=self.test_inputs, test_targets=self.test_targets)
 
-
     def update_stats(self, axis=None):
 
         def get_stats(inputs, axis=None):
             if axis is None:
-                axis = tuple(range(inputs.ndim - 1))
+                axis = tuple(range(max(inputs.ndim - 1, 1)))
             stats = {}
             mean = np.mean(inputs, axis=axis, keepdims=True)
             std = np.std(inputs, axis=axis, ddof=1, keepdims=True)
@@ -173,7 +197,7 @@ class Dataset:
             stationary_std = np.std(inputs, ddof=1)
             return mean, std, stationary_mean, stationary_std
 
-        mean, std, stationary_mean, stationay_std = zip(*[get_stats(x) for x in self._train_inputs])
+        mean, std, stationary_mean, stationay_std = zip(*[get_stats(x, axis=axis) for x in self._train_inputs])
         self._inputs_mean = mean
         self._inputs_std = std
         self._inputs_stationary_mean = stationary_mean
@@ -195,14 +219,25 @@ class Dataset:
     def inputs_stationary_std(self):
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_stationary_std)
 
-
-    def normalize(self, axis=None):
+    def normalize(self, axis=None, control=None):
         # TODO: extend to support more complex axis specification
         self.update_stats(axis=axis)
+        if control is None:
+            control = [True] * len(self._train_inputs)
+        else:
+            control = nest.flatten(control)
+
+        # establish closure
+        inputs_mean = self._inputs_mean
+        inputs_std = self._inputs_std
 
         def normalize_inputs(data):
-            normalized_data = [(d-mu)/sigma for d, mu, sigma in zip(data, self._inputs_mean, self._inputs_std)]
-            return normalized_data
+            flat_data = nest.flatten(data)
+            normalized_data = [((d - mu) / sigma if c else d) for d, mu, sigma, c in
+                               zip(flat_data, inputs_mean, inputs_std, control)]
+            return nest.pack_sequence_as(data, normalized_data)
+
+        self.normalizer = normalize_inputs
 
         self._train_inputs = normalize_inputs(self._train_inputs)
 
@@ -213,7 +248,6 @@ class Dataset:
             self._validation_inputs = normalize_inputs(self._validation_inputs)
 
         self.update_stats(axis=axis)
-
 
     @property
     def n_train_samples(self):
@@ -269,7 +303,8 @@ class Dataset:
         """
         # TODO: Consider cleaner handling of terminal indicies
         if batch_size > self.n_train_samples:
-            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(samples=self.n_train_samples))
+            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(
+                samples=self.n_train_samples))
         inputs, targets = self.train_set
         if self.minibatch_idx + batch_size > self.n_train_samples:
             self.next_epoch()
@@ -297,9 +332,18 @@ class Dataset:
             np.random.seed(seed)
         self.train_perm = np.random.permutation(self.n_train_samples)
 
+
 class MultiDataset:
     def __init__(self, *datasets):
         self._datasets = datasets
+
+    @property
+    def inputs_label(self):
+        return [d.inputs_label for d in self._datasets]
+
+    @property
+    def targets_label(self):
+        return [d.targets_label for d in self._datasets]
 
     @property
     def train_inputs(self):
@@ -354,8 +398,15 @@ class MultiDataset:
         return [d.inputs_stationary_std for d in self._datasets]
 
     def normalize(self, axis=None):
+        normalizers = []
         for d in self._datasets:
             d.normalize(axis=axis)
+            normalizers.append(d.normalizer)
+
+        def normalize_all(data):
+            return [n(d) for d, n in zip(data, normalizers)]
+
+        self.normalizer = normalize_all
 
     @property
     def n_train_samples(self):
@@ -393,10 +444,10 @@ class MultiDataset:
         """
         return self.validation_inputs, self.validation_targets
 
-
     def minibatch(self, batch_size):
         if batch_size > self.n_train_samples:
-            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(samples=self.n_train_samples))
+            raise ValueError('Batch size must be smaller than or equal to total number of samples ({samples})'.format(
+                samples=self.n_train_samples))
         minibatches = [dataset.minibatch(batch_size) for dataset in self._datasets]
         batch_inputs, batch_targets = zip(*minibatches)
         return list(batch_inputs), list(batch_targets)
@@ -404,6 +455,3 @@ class MultiDataset:
     def next_epoch(self, seed=None):
         for d in self._datasets:
             d.next_epoch(seed=seed)
-
-
-
