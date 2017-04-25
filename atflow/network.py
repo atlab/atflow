@@ -201,25 +201,25 @@ def bias_variable(shape, name='bias', value=0.0, initializer=None, constrain=Non
     return biases
 
 
-def factorized_readout(inputs, n_outputs=100, constrain=True):
+def factorized_readout(inputs, n_outputs=100, constrain=True, trainable=True):
     width, height, n_features = inputs.get_shape()[1:].as_list()
     n_pixels = width * height
 
     with tf.variable_scope('readout'):
         # spatial readout
-        w_spatial = weight_variable([n_pixels, 1, n_outputs], name='weight_spatial')
+        w_spatial = weight_variable([n_pixels, 1, n_outputs], name='weight_spatial', trainable=trainable)
         if constrain:
             constraints.positive_constrain(w_spatial)
         w_spatial_norm = normalize_weights(w_spatial, dims=(0,))
 
         # feature readout
-        w_feature = weight_variable([1, n_features, n_outputs], name='weight_feature')
+        w_feature = weight_variable([1, n_features, n_outputs], name='weight_feature',  trainable=trainable)
         if constrain:
             constraints.positive_constrain(w_feature)
         w_feature_norm = normalize_weights(w_feature, dims=(1,))
 
         # scaling
-        w_scale = bias_variable([n_outputs], name='weight_scale', value=1.0)
+        w_scale = bias_variable([n_outputs], name='weight_scale', value=1.0,  trainable=trainable)
         if constrain:
             constraints.positive_constrain(w_scale)
 
