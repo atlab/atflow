@@ -155,7 +155,7 @@ def normalize_weights(w, dims=(0,), bias=1e-12):
         return w / (tf.sqrt(tf.reduce_sum(tf.square(w), dims, keep_dims=True) + bias))
 
 
-def weight_variable(shape, name='weight', mean=0.0, stddev=1e-3, initializer=None, constrain=None, dtype=tf.float32):
+def weight_variable(shape, name='weight', mean=0.0, stddev=1e-3, initializer=None, constrain=None, trainable=True, dtype=tf.float32):
     """
     Creates and returns a variable initialized with random_normal_initializer, suitable for use as a weight.
 
@@ -173,13 +173,12 @@ def weight_variable(shape, name='weight', mean=0.0, stddev=1e-3, initializer=Non
     """
     if initializer is None:
         initializer = tf.random_normal_initializer(mean=mean, stddev=stddev)
-    weights = tf.get_variable(name, shape=shape, initializer=initializer, dtype=dtype)
+    weights = tf.get_variable(name, shape=shape, initializer=initializer, trainable=trainable, dtype=dtype)
     if constrain is not None:
         constrain(weights)
     return weights
 
-
-def bias_variable(shape, name='bias', value=0.0, initializer=None, constrain=None, dtype=tf.float32):
+def bias_variable(shape, name='bias', value=0.0, initializer=None, constrain=None, trainable=True, dtype=tf.float32):
     """
     Creates and returns a variable initialized with random_normal_initializer, suitable for use as a bias.
 
@@ -196,31 +195,31 @@ def bias_variable(shape, name='bias', value=0.0, initializer=None, constrain=Non
     """
     if initializer is None:
         initializer = tf.constant_initializer(value=value)
-    biases = tf.get_variable(name, shape=shape, initializer=initializer, dtype=dtype)
+    biases = tf.get_variable(name, shape=shape, initializer=initializer, trainable=trainable, dtype=dtype)
     if constrain is not None:
         constrain(biases)
     return biases
 
 
-def factorized_readout(inputs, n_outputs=100, constrain=True):
+def factorized_readout(inputs, n_outputs=100, constrain=True, trainable=True):
     width, height, n_features = inputs.get_shape()[1:].as_list()
     n_pixels = width * height
 
     with tf.variable_scope('readout'):
         # spatial readout
-        w_spatial = weight_variable([n_pixels, 1, n_outputs], name='weight_spatial')
+        w_spatial = weight_variable([n_pixels, 1, n_outputs], name='weight_spatial', trainable=trainable)
         if constrain:
             constraints.positive_constrain(w_spatial)
         w_spatial_norm = normalize_weights(w_spatial, dims=(0,))
 
         # feature readout
-        w_feature = weight_variable([1, n_features, n_outputs], name='weight_feature')
+        w_feature = weight_variable([1, n_features, n_outputs], name='weight_feature',  trainable=trainable)
         if constrain:
             constraints.positive_constrain(w_feature)
         w_feature_norm = normalize_weights(w_feature, dims=(1,))
 
         # scaling
-        w_scale = bias_variable([n_outputs], name='weight_scale', value=1.0)
+        w_scale = bias_variable([n_outputs], name='weight_scale', value=1.0,  trainable=trainable)
         if constrain:
             constraints.positive_constrain(w_scale)
 
