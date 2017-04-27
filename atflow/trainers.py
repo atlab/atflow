@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow.python.util import nest
 
 from atflow import constraints
+from atflow.dataset import batchify
 
 
 class Trainer:
@@ -225,9 +226,11 @@ class Trainer:
               train_summary_freq=10,
               validation_freq=50,
               validation_summary_freq=None,
+              validation_batch_size=-1,
               early_stopping_steps=5,
               burn_in_steps=None,
               test_freq=100,
+              test_batch_size=-1,
               save_freq=500,
               load_best=True,
               callback_fn=None):
@@ -243,12 +246,18 @@ class Trainer:
         :param validation_freq: How often to perform validation check for early stopping. If validation_freq <= 0,
         validation check is not performed. If validation_freq <= 0 and max_steps <=0, this may lead to non-stopping
         training loop!
+        :param validation_batch_size: If > 0, evaluates validation score on a batch of the specified size.
+        Useful if validation set is too big to be run in full. If validation_batch_size > size of validation set,
+        then will just use the full validation set.
         :param validation_summary_freq:  How often to write validation summary. Never if validation_summary_freq <= 0.
         If None (default), write summary at every validation check.
         :param early_stopping_steps: How many unsuccessful validation checks to perform before early stopping.
         :param burn_in_steps: Number of steps to skip validation checks at the beginning of training. Defaults to
         4 * validation_freq. Only applies to the globa_step value.
         :param test_freq: How often to check on testset and write summary. Never if test_freq <= 0.
+        :param test_batch_size: If > 0, evaluates validation score on a batch of the specified size.
+        Useful if test set is too big to be run in full. If test_batch_size > size of test set, then
+        will just use the full test set.
         :param save_freq: How often to save the current state of the graph. Never if save_freq <= 0.
         :param load_best: If True, loads the network state with best validation score at the end of the training.
         :param callback_fn: Optional call back function to be called at the end of each batch. The function signature
@@ -256,6 +265,10 @@ class Trainer:
         during this training, and global_step is the value of the global_step variable.
         :return: the minimum total loss achieved during the training.
         """
+
+        def full_generator(dataset):
+            while True:
+                yield dataset
 
         # Handle absence of validation and/or test set
         if dataset.n_test_samples == 0:
@@ -266,6 +279,21 @@ class Trainer:
             # skip validation if no validation set present
             validation_freq = 0
 
+        if validation_batch_size >= dataset.n_validation_samples:
+            validation_batch_size = -1
+
+        if test_batch_size >= dataset.n_test_samples:
+            test_batch_size = -1
+
+        if validation_batch_size > 0:
+            validation_gen = batchify(dataset.validation_set, batchsize=validation_batch_size, n_epochs=-1)
+        else:
+            validation_gen = full_generator(dataset.validation_set)
+
+        if test_batch_size > 0:
+            test_gen = batchify(dataset.test_set, batchsize=test_batch_size, n_epochs=-1)
+        else:
+            test_gen = full_generator(dataset.test_set)
 
 
         validation_summary_freq = validation_summary_freq or validation_freq
@@ -281,7 +309,7 @@ class Trainer:
 
         # save validation score at the very beginning
         if validation_freq > 0 and self.min_total_loss is None:
-            validation_inputs, validation_targets = dataset.validation_set
+            validation_inputs, validation_targets = next(validation_gen)
             fd = self.make_feed_dict(validation_inputs, validation_targets, is_training=False, feed_dict=feed_dict)
             total_loss = sess.run(self.total_loss, feed_dict=fd)
             print('\rInitial validation cost=%.5f' % total_loss, flush=True)
@@ -311,14 +339,14 @@ class Trainer:
 
             # generate test summary every test_freq
             if test_freq > 0 and step % test_freq == 0:
-                test_inputs, test_targets = dataset.test_set
+                test_inputs, test_targets = next(test_gen)
                 fd = self.make_feed_dict(test_inputs, test_targets, is_training=False, feed_dict=feed_dict)
                 summary = sess.run(self.summary, feed_dict=fd)
                 self.test_summary.add_summary(summary, global_step=global_step)
 
             # run validation, generate validation summary, and early stop if necessary
             if validation_freq > 0 and global_step > burn_in_steps and step % validation_freq == 0:
-                validation_inputs, validation_targets = dataset.validation_set
+                validation_inputs, validation_targets = next(validation_gen)
                 fd = self.make_feed_dict(validation_inputs, validation_targets, is_training=False, feed_dict=feed_dict)
 
                 # output validation summary every validation_summary_freq

@@ -13,6 +13,43 @@ def create_placeholders_like(input_shape, dtype=tf.float32, name='inputs_{index}
     return inputs_
 
 
+def batchify(data, batchsize=128, n_epochs=1, cutoff=False):
+    """
+    Creates and returns a generator that will yield batches of data
+    with batchsize for n_epochs. If n_epochs <= 0, then the generator
+    yields batches without an end. If cutoff=True, then only complete
+    batches will be returned. If cutoff=False (default), any remaining
+    elements will be returned for the last batch.
+    """
+    flat_data = nest.flatten(data)
+
+    def get_data(indicies):
+        batch = [x[indicies] for x in flat_data]
+        return nest.pack_sequence_as(data, batch)
+
+    N = len(flat_data[0])
+    perm = np.random.permutation(N)
+    pos = 0
+    epoch = 0
+    while n_epochs <= 0 or epoch < n_epochs - 1 or pos < N:
+        if pos + batchsize > N:
+            if epoch == n_epochs - 1:
+                if not cutoff:
+                    yield get_data(perm[pos:])
+                return
+            else:
+                missing = pos + batchsize - N
+                pos1 = perm[pos:]
+                perm = np.random.permutation(N)
+                pos2 = perm[:missing]
+                yield get_data(np.hstack((pos1, pos2)))
+                epoch += 1
+                pos = missing
+        else:
+            yield get_data(perm[pos:pos + batchsize])
+            pos = pos + batchsize
+
+
 class Dataset:
     """
     Represents a collection of dataset
