@@ -356,7 +356,7 @@ class Trainer:
                 else:
                     total_loss = sess.run(self.total_loss, feed_dict=fd)
                 print('Global Step %04d Step %04d: validation cost=%.5f' % (global_step, step, total_loss),
-                      flush=True, end='')
+                      flush=True)
 
                 # perform early stopping check
                 if self.min_total_loss is None or total_loss < self.min_total_loss:
