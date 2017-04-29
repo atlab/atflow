@@ -312,7 +312,7 @@ class Trainer:
             validation_inputs, validation_targets = next(validation_gen)
             fd = self.make_feed_dict(validation_inputs, validation_targets, is_training=False, feed_dict=feed_dict)
             total_loss = sess.run(self.total_loss, feed_dict=fd)
-            print('\rInitial validation cost=%.5f' % total_loss, flush=True)
+            print('\nInitial validation cost=%.5f' % total_loss, flush=True)
             self.min_total_loss = total_loss
             self.save_best()
 
@@ -355,19 +355,19 @@ class Trainer:
                     self.validation_summary.add_summary(summary, global_step=global_step)
                 else:
                     total_loss = sess.run(self.total_loss, feed_dict=fd)
-                print('\rGlobal Step %04d Step %04d: validation cost=%.5f' % (global_step, step, total_loss),
+                print('Global Step %04d Step %04d: validation cost=%.5f' % (global_step, step, total_loss),
                       flush=True, end='')
 
                 # perform early stopping check
                 if self.min_total_loss is None or total_loss < self.min_total_loss:
                     self.min_total_loss = total_loss
                     checks_without_update = 0
-                    print(' Updated min total loss! Saving...')
+                    print('Updated min total loss! Saving...')
                     self.save_best()
                 else:
                     checks_without_update += 1
                     if checks_without_update == early_stopping_steps:
-                        print('\nEarly stopping!')
+                        print('Early stopping!')
                         break
 
             # get new step value (incremented due to training step)
