@@ -16,6 +16,7 @@ class Trainer:
                  save_dir=None,
                  add_summary=False,
                  regularize=True, constrain=True,
+                 skip_adam_variables=False,
                  optimizer_op=tf.train.AdamOptimizer, optimizer_config=None):
         self.loss = loss
         self.graph = loss.graph
@@ -24,6 +25,7 @@ class Trainer:
         self.is_training_ = is_training
         self.session = session
         self.session_config = session_config
+        self.skip_adam_variables = skip_adam_variables
 
         self._save_dir = None
 
@@ -101,6 +103,8 @@ class Trainer:
 
             # configure to save and load all variables except for the global step value
             variables_to_load = [v for v in tf.global_variables() if 'global_step' not in v.name]
+            if self.skip_adam_variables:
+                variables_to_load = [v for v in variables_to_load if 'adam' not in v.name.lower()]
             self.saver = tf.train.Saver(max_to_keep=10)
             self.saver_best = tf.train.Saver(variables_to_load, max_to_keep=1)
             self.init = tf.global_variables_initializer()
