@@ -1,3 +1,4 @@
+"""A collection of regularizers"""
 import tensorflow as tf
 
 def l1_regularizer(scale, scope='l1_regularizer', name=None, use_mean=True):

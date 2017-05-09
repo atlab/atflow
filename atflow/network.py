@@ -233,6 +233,7 @@ def factorized_readout(inputs, n_outputs=100, constrain=True, trainable=True):
 
 
 def batch_norm(inputs, *args, tag=None, add_summary=True, step=0, **kwargs):
+    """A wrapper around batchn norm operation"""
     if step > 0 and 'updates_collections' not in kwargs:
         kwargs['updates_collections'] = 'dump'
     output = layers.batch_norm(inputs, *args, **kwargs)
@@ -275,6 +276,8 @@ def conv2d(input, filter, strides, padding, padding_type=0, name=None, **kwargs)
 
 
 def image_pad(input, paddings, mode=0, name=None):
+    """Convenience function to provide specialized padding on image. Padding type can be
+    'CONSTANT', 'MEAN', 'REFLECT' or 'SYMMETRIC'"""
     if mode==0:
         mode = 'CONSTANT'
 

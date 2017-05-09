@@ -167,22 +167,37 @@ class Dataset:
 
     @property
     def inputs_label(self):
+        """
+        Returns: labels on the inputs
+        """
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_label)
 
     @property
     def targets_label(self):
+        """
+        Returns: labels on the targets
+        """
         return nest.pack_sequence_as(self.targets_structure, self._targets_label)
 
     @property
     def train_inputs(self):
+        """
+        Returns: training set inputs
+        """
         return nest.pack_sequence_as(self.inputs_structure, self._train_inputs)
 
     @property
     def train_targets(self):
+        """
+        Returns: training set targets
+        """
         return nest.pack_sequence_as(self.targets_structure, self._train_targets)
 
     @property
     def test_inputs(self):
+        """
+        Returns: test set inputs
+        """
         if self._test_inputs is None:
             return None
         else:
@@ -190,6 +205,9 @@ class Dataset:
 
     @property
     def test_targets(self):
+        """
+        Returns: test set targets
+        """
         if self._test_targets is None:
             return None
         else:
@@ -197,6 +215,9 @@ class Dataset:
 
     @property
     def validation_inputs(self):
+        """
+        Returns: validaton set inputs
+        """
         if self._validation_inputs is None:
             return None
         else:
@@ -204,6 +225,9 @@ class Dataset:
 
     @property
     def validation_targets(self):
+        """
+        Returns: validation set targets
+        """
         if self._validation_targets is None:
             return None
         else:
@@ -211,19 +235,30 @@ class Dataset:
 
     @property
     def inputs_shape(self):
+        """
+        Returns: shape of the inputs
+        """
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_shape)
 
     @property
     def targets_shape(self):
+        """
+        Returns: shape of the targets
+        """
         return nest.pack_sequence_as(self.targets_structure, self._targets_shape)
 
     def copy(self):
+        """
+        Returns: a copy of the dataset
+        """
         return Dataset(inputs=self.train_inputs.copy(), targets=self.train_targets.copy(),
                        validation_inputs=self.validation_inputs, validation_targets=self.validation_targets,
                        test_inputs=self.test_inputs, test_targets=self.test_targets)
 
     def update_stats(self, axis=None):
-
+        """
+        Recomputes the statistics based on the current dataset
+        """
         def get_stats(inputs, axis=None):
             if axis is None:
                 axis = tuple(range(max(inputs.ndim - 1, 1)))
@@ -242,21 +277,36 @@ class Dataset:
 
     @property
     def inputs_mean(self):
+        """
+        Returns: mean of the training set inputs
+        """
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_mean)
 
     @property
     def inputs_std(self):
+        """
+        Returns: standard deviation of the training set inputs
+        """
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_std)
 
     @property
     def inputs_stationary_mean(self):
+        """
+        Returns: stationary mean of the training set inputs
+        """
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_stationary_mean)
 
     @property
     def inputs_stationary_std(self):
+        """
+        Returns: stationary standard deviation of the training set inputs
+        """
         return nest.pack_sequence_as(self.inputs_structure, self._inputs_stationary_std)
 
     def normalize(self, axis=None, control=None):
+        """
+        Normalize the dataset
+        """
         # TODO: extend to support more complex axis specification
         self.update_stats(axis=axis)
         if control is None:

@@ -1,11 +1,15 @@
-# Utility functions for defining constrained variables
+"""
+Collection of variable constraints
+"""
+
 import tensorflow as tf
 import numpy as np
 from math import floor
 
 
 def constrain_all_variables():
-    """Apply constraining ops on all variables with constraints.
+    """
+    Apply constraining ops on all variables with constraints.
 
     Returns:
         An Op that applies variables constraints.

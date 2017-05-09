@@ -132,6 +132,21 @@ def _conv2d_config(input_shape, output_shape, filter_shape):
 
 
 def get_convolution(inputs, output_shape, filter_size, scope=None):
+    """
+    Convenience function that given inputs and desired output_shape and filter size,
+    returns appropriate convolution operation.
+
+    Args:
+        inputs: inputs Tensor into the convolution
+        output_shape: desired output shape from the "convolution" op
+        filter_size: size of the filter to use must be of shape [w, h]
+        scope: optional scope name to define the Ops under. Defaults to 'convolution'
+
+    Returns:
+        A tuple (weight, output) - weight variable for the convolution used and output of the
+            convolution
+
+    """
     with tf.variable_scope(scope or 'convolution'):
         #logger.debug('Generating convolution layer in %s' % tf.get_variable_scope().name)
         input_shape = inputs.get_shape()[-3:]
