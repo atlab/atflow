@@ -13,7 +13,7 @@ def create_placeholders_like(input_shape, dtype=tf.float32, name='inputs_{index}
     return inputs_
 
 
-def batchify(data, batchsize=128, n_epochs=1, cutoff=False):
+def batchify(data, batchsize=128, n_epochs=1, shuffle=True, cutoff=False):
     """
     Creates and returns a generator that will yield batches of data
     with batchsize for n_epochs. If n_epochs <= 0, then the generator
@@ -28,7 +28,14 @@ def batchify(data, batchsize=128, n_epochs=1, cutoff=False):
         return nest.pack_sequence_as(data, batch)
 
     N = len(flat_data[0])
-    perm = np.random.permutation(N)
+
+    def get_perm():
+        if shuffle:
+            return np.random.permutation(N)
+        else:
+            return np.arange(N)
+
+    perm = get_perm()
     pos = 0
     epoch = 0
     while n_epochs <= 0 or epoch < n_epochs - 1 or pos < N:
@@ -40,7 +47,8 @@ def batchify(data, batchsize=128, n_epochs=1, cutoff=False):
             else:
                 missing = pos + batchsize - N
                 pos1 = perm[pos:]
-                perm = np.random.permutation(N)
+                perm = get_perm()
+
                 pos2 = perm[:missing]
                 yield get_data(np.hstack((pos1, pos2)))
                 epoch += 1
